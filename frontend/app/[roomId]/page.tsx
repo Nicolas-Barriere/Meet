@@ -1,5 +1,7 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
+const RoomJoinConfirmation = dynamic(() => import('../components/RoomJoinConfirmation'), { ssr: false });
 import { useParams } from 'next/navigation';
 import * as mediasoupClient from 'mediasoup-client';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +21,7 @@ export default function RoomPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [preJoinStream, setPreJoinStream] = useState<MediaStream | null>(null);
 
   // Refs to keep persistent objects
   const deviceRef = useRef<mediasoupClient.types.Device | null>(null);
@@ -105,8 +108,12 @@ export default function RoomPage() {
           });
         });
 
-        // 6. getUserMedia et produire
-        const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // 6. utiliser le stream pré-join (prévisualisation)
+        let localStream = preJoinStream;
+        if (!localStream) {
+          // fallback: demander si pas de stream (ne devrait pas arriver)
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        }
         if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
 
         const videoTrack = localStream.getVideoTracks()[0];
@@ -142,9 +149,6 @@ export default function RoomPage() {
                 kind: consumerData.kind,
                 rtpParameters: consumerData.rtpParameters,
               });
-        // 1. getUserMedia local preview
-        const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
               if (consumer.paused) await consumer.resume();
               consumersRef.current.push(consumer);
               consumedProducerIdsRef.current.add(consumerData.producerId);
@@ -217,16 +221,20 @@ export default function RoomPage() {
       recvTransportRef.current?.close();
       socketRef.current?.disconnect();
     };
-  }, [joined, roomId, userId]);
+  }, [joined, roomId, userId, preJoinStream]);
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen">
       <div className="p-8 bg-white rounded shadow max-w-xl w-full">
         <h2 className="text-xl font-bold mb-4">Salle : {roomId}</h2>
         {!joined ? (
-          <button onClick={() => setJoined(true)} className="px-4 py-2 bg-blue-600 text-white rounded">
-            Rejoindre la visio
-          </button>
+          <RoomJoinConfirmation
+            roomId={roomId as string}
+            onJoin={(stream) => {
+              setPreJoinStream(stream);
+              setJoined(true);
+            }}
+          />
         ) : (
           <div className="flex gap-6">
             <div>
