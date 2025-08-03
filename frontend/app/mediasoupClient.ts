@@ -7,7 +7,6 @@ export async function leaveRoom(roomId: string, userId: string) {
 
 export async function getProducers(roomId: string, userId: string) {
   const res = await axios.get(`${API_URL}/producers`, { params: { roomId, userId } });
-  console.log('[getProducers] userId:', userId, 'roomId:', roomId, 'producers:', res.data);
   return res.data as Array<{ userId: string; producerId: string }>;
 }
 
